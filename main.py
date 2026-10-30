@@ -1,9 +1,10 @@
-import requests
+from backend_errors import BackendError
 from pathlib import Path
 
 from ollama_backend import get_llm_reply
+from config import MAX_HISTORY_TURNS
 
-def main():
+def main(reply_function):
     personality_path = Path(__file__).resolve().parent / "personality.txt"
  
     try:
@@ -33,23 +34,17 @@ def main():
 
         messages.append({"role": "user", "content": test_message})
         try:
-            reply = get_llm_reply(messages)
+            reply = reply_function(messages)
 
-        except requests.exceptions.ConnectionError:
+        except BackendError as error:
             messages.pop()
-            print("Cannot connect to Ollama. Check that it is running.")
-            continue
-        except requests.exceptions.Timeout:
-            messages.pop()
-            print("Ollama took too long to respond. Try again.")
-            continue
-        except requests.exceptions.HTTPError as error:
-            messages.pop()
-            print(f"Ollama rejected the request: {error}")
+            print(error)
             continue
 
         messages.append({"role": "assistant", "content": reply})
+        while len(messages) > 1 + MAX_HISTORY_TURNS * 2:
+            del messages[1:3]
         print(f"Akane: {reply}")
 
 if __name__ == "__main__":
-    main()
+    main(get_llm_reply)

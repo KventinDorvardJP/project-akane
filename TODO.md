@@ -10,11 +10,11 @@
 - [x] Move model settings into config.py.
 - [x] Add a main function and startup guard.
 - [x] Handle a missing personality file.
-- [ ] Limit conversation history while preserving the system prompt.
-- [ ] Define a common backend interface for Ollama and future OpenAI support.
-- [ ] Verify the chat loop works with a replacement test backend.
-- [ ] Record dependencies and setup instructions.
-- [ ] Run final checks: chat, context recall, reset, exit, and error handling.
+- [x] Limit conversation history while preserving the system prompt.
+- [x] Define a common backend interface for Ollama and future OpenAI support.
+- [x] Verify the chat loop works with a replacement test backend.
+- [x] Record dependencies and setup instructions.
+- [x] Run final checks: chat, context recall, reset, exit, and error handling.
 
 ## Completion criteria
 

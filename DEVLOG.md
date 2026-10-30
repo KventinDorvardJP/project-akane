@@ -6,6 +6,13 @@ Early entries were reconstructed from development conversations.
 ## Current state
 The terminal prototype supports conversation history, personality configuration, reset and exit commands, and common request-error handling.
 
+## 2026-10-29 — Finished milestone 1. 
+
+Limited conversation history while preserving the system prompt.
+Defined a common backend interface for Ollama and future OpenAI support.
+Verified the chat loop works with a replacement test backend. Need to learn better how classes work in Python.
+Recorded dependencies and setup instructions.
+
 ## 2026-10-26 — Verifying configuration and extracting a function
 
 #### Personality experiment
