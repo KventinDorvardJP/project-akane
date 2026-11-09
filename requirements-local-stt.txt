@@ -1,0 +1,3 @@
+# Install only when choosing STT_BACKEND = "local".
+-r requirements.txt
+faster-whisper==1.2.1
