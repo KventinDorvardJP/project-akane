@@ -28,6 +28,35 @@ package is needed. The program never opens or operates another app.
   information, using the conversation's game/language context to disambiguate.
 - Ordinary banter can skip search. `/search` does not change the stored user message.
 
+Personal questions such as “What games do you play?”, “Any games you've been
+playing recently?” and “How are you doing?” should be answered conversationally
+as Akane, without researching ChatGPT/OpenAI's capabilities or memory. The words
+“recently” and “games” alone are not a reason to search. Luna is instructed to
+identify a needed external fact before searching, keep the query on that fact,
+and clarify uncertainty when results are unrelated. Recent releases, factual game
+questions and recommendations can still need search. `/search` and forced identity
+verification retain their existing behavior. This is model guidance, not a
+keyword-based classifier or a guarantee of correct tool choice; no extra model
+call is made to classify the question.
+
+Regression conversation for manual acceptance after restarting Akane:
+
+| Question | Expected search behavior |
+| --- | --- |
+| “What games do you play?” | No web search; natural personal conversation |
+| “Any games you have been playing recently?” | No web search; no invented real play history |
+| “What games released recently?” | External factual lookup when needed |
+| “What recent games would you recommend?” | Search can support recommendations |
+| “Who is Rean Schwarzer?” / `/search ...` | Required lookup remains enforced |
+
+With session transcripts enabled, `web_search` events now save provider-returned
+queries by model-request number. Both `query` and `queries` API forms are supported;
+missing query text is recorded as null/absent actions, never reconstructed from
+your question or the sources. Metadata is bounded to ten search actions, eight
+queries per action and 1,024 characters per query, with a truncation flag. Full
+retrieved pages are not archived. Existing reply-source links, counts and fees are
+unchanged. Old logs cannot recover queries they did not record.
+
 The cloud instructions prioritize factual accuracy over character performance,
 prefer primary sources, and ask for clarification if identity/typos cannot be
 resolved. No character answer is hardcoded. These rules and search do not guarantee
@@ -55,16 +84,17 @@ It does not grant Ollama access. Restart after changing settings.
 
 ## Sources and speech
 
-The backend still returns exactly `ja` and `en` JSON text. Japanese goes to VOICEVOX
-and English goes to the existing subtitle file; source URLs are separate metadata.
+Each reply segment pairs `ja` with either `en` or `ru`. Japanese goes to VOICEVOX
+and the selected English or Russian translation goes to the existing subtitle file.
+Source URLs are separate metadata.
 Known citation controls, Markdown link wrappers, and returned source URLs are
-removed from the speech text. Console output lists sources after the English answer.
+removed from the speech text. Console output lists sources after the answer.
 
-- `runtime/sources.html` contains the latest English answer with prominent clickable
+- `runtime/sources.html` contains the latest translated answer with prominent clickable
   source references. Open it yourself and refresh after a later answer; Akane does
   not launch a browser or a server. HTML/URLs are escaped/validated and it loads no
   external scripts, images, or styles.
-- `runtime/sources.json` contains that English answer and the source list, including
+- `runtime/sources.json` contains that translation under `en` or `ru` and the source list, including
   title, URL, and whether it was cited or merely retrieved. These generated files
   store the latest answer, not a complete conversation log, and remain Git-ignored.
 - Native API citation annotations are labelled **cited**. Search-result pages without

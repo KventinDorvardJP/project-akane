@@ -10,6 +10,16 @@ That loopback server runs in this process too. **Copy overlay URL** is enabled o
 when it starts successfully; the footer shows its status. See
 [SUBTITLE_OVERLAY.md](SUBTITLE_OVERLAY.md) for the manual OBS setup.
 
+For questions from inside WoW, enable **Settings → WoW context → Enable Witchcraft
+in-game chat**, then Save & restart, or launch with `-Gui -Witchcraft`. Start
+`start_witchcraft.ps1` in a separate terminal to connect Witchcraft's CODEX tab.
+Both interfaces share this window's history and single turn worker; English is
+mirrored in Witchcraft while Japanese speech/captions use the existing pipeline.
+Context attachment remains separately selected. See [WOW_CONTEXT.md](WOW_CONTEXT.md).
+For WoW's normal General chat and the in-game microphone button, see
+[WOW_PUSH_TO_TALK.md](WOW_PUSH_TO_TALK.md). Enable recognition and omit `-NoStt`
+for microphone input; the button uses the same window's recorder/STT worker.
+
 ## Launch
 
 Cloud conversation with the current Luna settings:
@@ -47,6 +57,16 @@ bilingual format; it does not test intelligence or Japanese quality.
 
 ## Controls and display
 
+**Settings…** opens grouped controls for every current `config.py` setting, plus
+saved startup choices for test mode, recognition and hotkeys. Save for next time
+or **Save & restart** when idle. Restart clears chat/reference state and the local
+cost estimate, cleans up the old session, and rebuilds in the same process.
+See [SETTINGS.md](SETTINGS.md). API keys remain in `.env`/environment variables.
+
+The backend summary shows the selected Japanese TTS engine. Use
+`-TtsBackend gpt_sovits` for the configured inference WebUI or `-TtsBackend voicevox`
+for the default engine. See [GPT_SOVITS.md](GPT_SOVITS.md) for reference setup.
+
 **Japanese reference · LunaTranslator** adds opt-in connection and an **Include
 Japanese line** checkbox. Verify the preview, then ask by text or microphone. The
 attached line is frozen at turn/recording start and shown in conversation history.
@@ -82,8 +102,8 @@ clients. The window stays responsive. Pending HTTP calls may still finish and bi
 an initial local model download can also delay exit until initialization returns.
 No forced process kill is used.
 
-Global hotkeys register only with `-Hotkeys`/`--hotkeys`; `-Gui` alone uses window
-buttons. A hotkey failure warns while keeping buttons usable. Sources open in your
+Global hotkeys register when enabled in Settings/local configuration or with
+`-Hotkeys`/`--hotkeys`; they remain off by default. A hotkey failure keeps buttons usable. Sources open in your
 browser only after an explicit click. Incoming replies never open pages or dialogs.
 
 ## Implementation and verification
@@ -114,3 +134,13 @@ used during agent verification. When free:
 Native appearance/font scaling and live device/provider acceptance remain manual.
 Implementation references: [Tkinter](https://docs.python.org/3.12/library/tkinter.html)
 and [themed widgets](https://docs.python.org/3.12/library/tkinter.ttk.html).
+
+## Optional session transcripts
+
+In **Settings → Session**, enable **Record session transcript** and use
+**Save & restart**. The bottom row shows **Transcript: On/Off/Unavailable**.
+**Copy log path** copies the current readable file's path only when clicked.
+**Mark recording** writes a numbered UTC/elapsed timestamp for manually matching
+your external recording; it does not start recording or play sound. Generated
+replies and playback outcomes are recorded separately. See [SESSION_LOGS.md](SESSION_LOGS.md).
+Logging is off by default; files live under Git-ignored runtime/session_logs.

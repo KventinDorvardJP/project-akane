@@ -1,5 +1,6 @@
 """Headless control-window tests: no real Tk root, hotkeys, browser, audio or API."""
 from contextlib import ExitStack, redirect_stdout
+import gc
 import io
 import json
 from pathlib import Path
@@ -14,6 +15,7 @@ import control_window
 import main as app
 from backend_errors import BackendError
 from controls import TurnCancelled
+from settings_store import RESTART_SESSION
 from subtitles import write_subtitle
 from test_fake_backend import get_llm_reply as fake_reply
 from turns import TurnProcessor
@@ -348,6 +350,35 @@ class WindowInteractionTests(unittest.TestCase):
         self.assertIn("Hello", inserted)
         self.assertIn("[1]", inserted)
 
+    def test_retrieved_only_links_stay_in_sidebar_without_crowding_reply(self):
+        view = self.make_view()
+        model = WindowModel("Test", tts_enabled=False, budget=0.5)
+        sources = [{"url": "https://example.invalid/retrieved", "title": "Retrieved", "kind": "consulted"},
+                   {"url": "https://example.invalid/cited", "title": "Cited", "kind": "cited"}]
+        model.apply("reply", {"ja": "説明はここまで。", "en": "The full explanation ends here.", "sources": sources})
+        model.apply("sources", {"sources": sources})
+        view.render(model)
+        conversation = "".join(call.args[1] for call in view.conversation.insert.call_args_list)
+        sidebar = "".join(call.args[1] for call in view.sources.insert.call_args_list)
+        self.assertIn("The full explanation ends here.", conversation)
+        self.assertNotIn("[retrieved", conversation)
+        self.assertIn("[2]", conversation)
+        self.assertIn("Retrieved", sidebar)
+        self.assertIn("Cited", sidebar)
+
+    def test_russian_reply_keeps_japanese_and_inline_citations_without_english(self):
+        view = self.make_view()
+        model = WindowModel("Test", tts_enabled=False, budget=0.5)
+        sources = [{"url": "https://example.invalid/source", "title": "Reference", "kind": "cited"}]
+        model.apply("reply", {"ja": "ここを見て。", "ru": "Смотри сюда.", "sources": sources})
+        view.render(model)
+        inserted = "".join(call.args[1] for call in view.conversation.insert.call_args_list)
+        self.assertIn("AKANE · RU", inserted)
+        self.assertIn("Смотри сюда.", inserted)
+        self.assertIn("ここを見て。", inserted)
+        self.assertIn("[1]", inserted)
+        self.assertNotIn("AKANE · EN", inserted)
+
     def test_overlay_url_copies_only_after_explicit_action(self):
         view = self.make_view()
         view.overlay_copy = Mock()  # Other mocked ttk buttons share a factory return value.
@@ -373,6 +404,43 @@ class WindowInteractionTests(unittest.TestCase):
             browser.assert_not_called()
             view.open_link("https://example.invalid/source")
             browser.assert_called_once_with("https://example.invalid/source", new=2)
+
+    def test_transcript_copy_and_marker_controls_follow_logging_state(self):
+        view = self.make_view()
+        view.log_copy, view.log_mark = Mock(), Mock()
+        model = WindowModel("Test", tts_enabled=False, budget=0.5)
+        view.render(model)
+        view.copy_log_path()
+        self.root.clipboard_append.assert_not_called()
+        view.log_mark.configure.assert_called_with(state="disabled")
+        model.session_log_status, model.session_log_path = "On", r"C:\temp\session.txt"
+        view.render(model)
+        self.root.clipboard_append.assert_not_called()
+        view.log_copy.configure.assert_called_with(state="normal")
+        view.log_mark.configure.assert_called_with(state="normal")
+        view.copy_log_path()
+        self.root.clipboard_append.assert_called_once_with(model.session_log_path)
+        model.session_log_status = "Unavailable"
+        view.render(model)
+        view.log_mark.configure.assert_called_with(state="disabled")
+        model.closing = True
+        view.render(model)
+        view.log_copy.configure.assert_called_with(state="disabled")
+
+    def test_settings_panel_opens_only_on_click_and_reuses_existing_dialog(self):
+        view = self.make_view()
+        view.request = Mock(return_value=True)
+        with patch("settings_window.SettingsDialog") as dialog:
+            view.render(WindowModel("Test", tts_enabled=False, budget=0.5))
+            dialog.assert_not_called()
+            view.open_settings()
+            dialog.assert_called_once()
+            dialog.return_value.window.winfo_exists.return_value = True
+            view.open_settings()
+            dialog.assert_called_once()
+            dialog.return_value.window.lift.assert_called_once()
+            self.assertTrue(dialog.call_args.kwargs["on_restart"]())
+            view.request.assert_called_with("restart")
 
     def test_send_clears_input_only_when_accepted(self):
         view = self.make_view()
@@ -404,6 +472,43 @@ class WindowInteractionTests(unittest.TestCase):
 
 
 class EntryPointTests(unittest.TestCase):
+    def test_restart_collects_old_window_cycles_before_any_new_worker_can_collect_them(self):
+        finalized = []
+        owner = threading.get_ident()
+
+        class WindowResource:
+            def __del__(self):
+                finalized.append(threading.get_ident())
+
+        class Root:
+            def mainloop(self):
+                self.view.request("restart")
+                self.view.jobs.pop(0)()
+
+        class View(FakeView):
+            def __init__(self, root):
+                super().__init__()
+                self.root = root
+                root.view = self
+                self.resource = WindowResource()
+
+        with tempfile.TemporaryDirectory() as directory, redirect_stdout(io.StringIO()):
+            processor = TurnProcessor(Path(directory), "personality", fake_reply, tts_enabled=False,
+                                      synthesize=Mock(), play=Mock(), write_caption=write_subtitle)
+            automatic_gc = gc.isenabled()
+            gc.disable()
+            try:
+                with patch.object(control_window.tk, "Tk", new=lambda **options: Root()), \
+                     patch.object(control_window, "ControlWindow", new=View):
+                    for expected in range(1, 3):
+                        self.assertEqual(control_window.run_control_window(processor, Mock()), RESTART_SESSION)
+                        self.assertEqual(finalized, [owner] * expected)
+                        self.assertFalse(gc.isenabled())
+            finally:
+                gc.collect()
+                if automatic_gc:
+                    gc.enable()
+
     def test_window_entry_runs_session_and_closes_without_real_tk(self):
         with tempfile.TemporaryDirectory() as directory, redirect_stdout(io.StringIO()):
             processor = TurnProcessor(Path(directory), "personality", fake_reply, tts_enabled=False,

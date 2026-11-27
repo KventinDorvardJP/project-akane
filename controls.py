@@ -13,6 +13,8 @@ class TurnControl:
     stop_recording: threading.Event = field(default_factory=threading.Event)
     phase_callback: object = None
     caption_guard: object = None
+    turn_id: str | None = None
+    context_seconds: float = 0.0
 
     def check(self):
         if self.cancel.is_set():

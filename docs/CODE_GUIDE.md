@@ -1,20 +1,26 @@
 # How Milestone 2 fits together
 
-The main path is deliberately sequential:
+Input and model generation are sequential; speech can prepare one part ahead:
 
 ```text
 typed input -----------------------------+
 audio filename -> STT -------------------+-> user text -> LLM -> bilingual JSON
 mic -> temporary WAV -> STT -> delete WAV +                      |
-                                                    validate ja/en fields
+                                                   validate paired segments
                                                                |
-                                            JA -> VOICEVOX -> WAV bytes
-                                            EN -> UTF-8 subtitle file -> OBS
+                                           JA part -> selected TTS -> WAV bytes
+                                           EN part -> subtitle file -> OBS
                                                                |
-                                              play WAV -> clear subtitle
+                                             play -> next pair -> clear
 ```
 
 ## Read the code in this order
+
+The optional WoW module is described in [WOW_MODULE.md](WOW_MODULE.md):
+`wow_addon/AkaneData/` collects on events and serializes optical packets;
+`wow_module.py` validates/reassembles, tracks revisions and freezes local copies;
+`wow_capture.py` is the replaceable foreground-only Win32 screen adapter. It is
+started only with `--wow`. Neither receiving events nor freezing invokes a model.
 
 1. `config.py`: models, backend selection, microphone limits, and caption duration.
 2. `main.py`: command matching, provider selection, and startup/cleanup.
@@ -22,7 +28,9 @@ mic -> temporary WAV -> STT -> delete WAV +                      |
 4. `microphone.py`: start/stop capture, callback buffers, RMS validation, WAV output.
 5. `speech_to_text.py` and `cloud_speech_to_text.py`: different providers, same result.
 6. `llm_backends.py`, `ollama_backend.py`, and `openai_backend.py`: provider selection, requests, schema, usage, and error translation.
-7. `text_to_speech.py`: `/audio_query`, then `/synthesis`, returning WAV bytes.
+   `context_tools.py` projects approved frozen sources for OpenAI's bounded local
+   tool round; `tests/test_context_tools.py` exercises the SDK loop without services.
+7. `text_to_speech.py` and its adapters: select VOICEVOX/GPT-SoVITS and return WAV bytes.
 8. `subtitles.py` and `metrics.py`: generated output and timing/usage records.
 9. `controls.py`, `stream_controls.py`, `windows_hotkeys.py`, and `playback.py`: optional hotkeys, one worker, cancellation, and interruptible output.
 10. `tests/test_voice_pipeline.py` and `tests/test_controls_and_cloud.py`: examples of expected normal and failure behavior.
@@ -30,10 +38,39 @@ mic -> temporary WAV -> STT -> delete WAV +                      |
 
 ## Contracts worth understanding
 
+`witchcraft_bridge.py` is an opt-in loopback mailbox for the existing GUI, not a
+second conversation backend. HTTP handlers authenticate and queue bounded commands;
+`WindowSession.tick()` accepts them on the main thread through the same controller.
+Only plain questions, English replies and status/control notices are mirrored.
+`witchcraft_terminal.py` is a small polling ConPTY frontend launched by
+`start_witchcraft.ps1` through Witchcraft's existing custom-child support. It owns
+no model/audio state and never automatically retries a question. See WOW_CONTEXT.md.
+
+The companion daemon's opt-in `src/akane.js` relay adds a bounded, validated
+English/recording-state extension to the existing ring. Its Lua `Akane.lua`
+component prints new English replies locally and sends explicit press/hold/release
+gestures. `StreamController.hold_to_talk()` owns a gesture-specific recording
+lease and routes release to the existing stop event; timeout/early release discard
+instead of transcribing. See WOW_PUSH_TO_TALK.md for the manual acceptance limits.
+
+For accurate context freshness, `RingWriter.captureAnchor()` binds a slot's first
+write-start time to one host/UI session. `contextClockProtocol: 1` negotiates a v2
+context envelope with the slot captured before the native read. The cache validates
+this reference and uses its lower bound, preserving it across multipart assembly,
+replays, same-UI cursor resets and quest resumption. V1 packets retain legacy
+transport timing. Neither the threshold nor old capture timestamps are advanced.
+
 `get_llm_reply(messages)` returns **JSON text**, not a Python dictionary. The loop
-uses `json.loads()` to validate exactly two non-empty string fields, `ja` and `en`.
-It retains the original JSON string in history because message content is text.
-`test_fake_backend.py` implements the same interface without an LLM request.
+uses `json.loads()` to validate an ordered `segments` array of nonempty `ja`/`en`
+pairs. The original JSON is retained once in history. `parse_bilingual_reply()`
+joins pairs for the full GUI reply/compatibility, while `reply_delivery.py` keeps
+the boundaries for TTS/captions. Older single-pair backends are still accepted.
+`test_fake_backend.py` echoes input as one pair without an LLM request.
+
+`reply_delivery.py` owns a single synthesis executor with at most one next part
+prepared during current playback. It releases old WAVs, joins in-flight work during
+cleanup and checks cancellation before synthesis/publication/playback. Speech errors
+page remaining English; they do not trigger another model request. See `REPLY_CHUNKS.md`.
 
 `OpenAIBackend` is a callable object: `backend(messages)` has the same contract as
 the Ollama function. Its instance retains a client, last usage, and estimated
@@ -56,6 +93,12 @@ Standalone recording experiments can still save a WAV intentionally.
 
 `synthesize_speech(ja_text)` returns WAV **bytes**. `winsound.SND_MEMORY` plays those
 bytes synchronously; it does not create a temporary playback file.
+
+`text_to_speech.py` selects `voicevox_backend.py` by default or the optional
+`gpt_sovits_backend.py` WebUI client. Both share `SpeechSynthesisError` and PCM WAV
+validation from `speech_audio.py`. GPT-SoVITS is imported on demand, so the default
+path needs no Gradio client. The main/UI/hotkey turn flow does not handle model
+loading or reference uploads itself. See `GPT_SOVITS.md` for setup and scope.
 
 In hotkey mode, `playback.play_wav()` instead writes short chunks to a sounddevice
 output stream and aborts queued audio on cancellation. The input stream is closed
@@ -114,6 +157,14 @@ or missing usage blocks subsequent budgeted requests rather than inventing costs
 
 ## Small exercises for later
 
+`settings_store.py` derives all editable fields from `config._defaults`, captured
+before personal overrides are loaded. It parses/validates form values and atomically
+saves differences while detecting external file edits. `settings_window.py` builds
+the grouped form only on explicit click. Saving does not mutate active config.
+WindowSession permits restart only after initialization/active turns finish. The
+CLI closes the old backend, reloads config, and rebuilds the GUI in the same process
+without replaying old launch overrides. See `SETTINGS.md` and `tests/test_settings.py`.
+
 The optional Japanese reference is described in [TEXT_CONTEXT.md](TEXT_CONTEXT.md).
 `text_context.py` receives bounded raw text on a separate thread, storing only one
 latest value. The Tk thread polls snapshots. StreamController snapshots selected
@@ -140,3 +191,21 @@ with a mock HTTP transport; it does not prove live model accuracy.
 - Trace why a failed TTS request keeps history while a failed LLM request rolls it back.
 - Change a microphone threshold in `config.py` and predict which regression case it affects.
 - Follow one temporary WAV through creation, transcription, and exception cleanup.
+
+## Optional transcript path
+
+`main.py` owns a `session_log.SessionLog` only when SESSION_LOG_ENABLED is true,
+then closes it after workers/clients finish (including GUI restarts). Files are
+under ignored runtime/session_logs. The shared TurnProcessor logs selected
+display events and captions before forwarding GUI events; logging works in both
+terminal and window modes. One turn ID links accepted recording/input, generated
+JA/EN segments, sources, metrics and the final outcome. StreamController also
+records recording phases and controls. Reply delivery supplies per-part synthesis
+and playback events, including generated but cancelled prefetch.
+
+SessionLog uses a lock because UI/turn/synthesis workers can report concurrently.
+It writes each event to UTF-8 JSONL and a readable text companion, flushing each,
+with UTC and monotonic elapsed time. Write failures disable logging and warn once;
+they do not stop chat or add provider requests. No audio callback writes logs.
+Playback dispatch and caption-file publication timestamps do not measure device
+or OBS onset. See SESSION_LOGS.md and tests/test_session_log.py.

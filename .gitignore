@@ -58,9 +58,13 @@ tempCodeRunnerFile.py
 
 # Local mentoring notes and machine-specific experiment reports (keep on disk)
 /AGENTS.md
+/docs/AGENTS.md
 /DEVLOG.md
+/docs/DEVLOG.md
 /TODO.md
+/docs/TODO.md
 /MILESTONE2_REPORT.md
+/docs/MILESTONE2_REPORT.md
 
 # One-off learning/sample scripts and a separate project sharing this venv
 /transcribe_cloud_sample.py
@@ -70,5 +74,6 @@ tempCodeRunnerFile.py
 /record_sample.py
 /textextractor.py
 /textextractor/
+/tts_volume_sample.py
 
 # Keep tests/, test_fake_backend.py, config.py and public guides in Git.

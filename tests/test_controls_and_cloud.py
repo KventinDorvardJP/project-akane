@@ -79,7 +79,7 @@ class OpenAIBackendTests(unittest.TestCase):
         self.assertEqual(json.loads(reply)["ja"], "こんにちは")
         self.assertFalse(requests[0]["store"])
         self.assertTrue(requests[0]["text"]["format"]["strict"])
-        self.assertEqual(requests[0]["text"]["format"]["schema"]["required"], ["ja", "en"])
+        self.assertEqual(requests[0]["text"]["format"]["schema"]["required"], ["segments"])
         self.assertEqual(backend.last_usage["input_tokens"], 200)
         self.assertEqual(backend.last_usage["reasoning_tokens"], 10)
         self.assertAlmostEqual(backend.last_usage["estimated_api_cost_usd"], 0.00071)

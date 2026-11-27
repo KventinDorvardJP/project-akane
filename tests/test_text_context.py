@@ -9,7 +9,9 @@ import tempfile
 import threading
 from time import monotonic, sleep
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+
+import config
 
 from conversation import REFERENCE_MARKER, question_part, with_japanese_reference
 from subtitles import write_subtitle
@@ -181,6 +183,11 @@ class FakeView:
 
 class ContextSessionTests(unittest.TestCase):
     def setUp(self):
+        # Context tests inspect data flow, not real-time subtitle reading holds.
+        for name in ("SUBTITLE_MIN_SECONDS", "SUBTITLE_READING_CHARS_PER_SECOND"):
+            setting = patch.object(config, name, 0)
+            setting.start()
+            self.addCleanup(setting.stop)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)

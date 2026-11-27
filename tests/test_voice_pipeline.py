@@ -23,7 +23,7 @@ import ollama_backend
 import speech_to_text as local
 import subtitles
 from test_fake_backend import get_llm_reply as fake_reply
-import text_to_speech as tts
+import voicevox_backend as tts
 
 
 def wav_bytes(samples=800, level=1000, rate=16000):

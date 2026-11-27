@@ -4,8 +4,11 @@ param(
     [switch]$NoTts,
     [switch]$Hotkeys,
     [switch]$Gui,
+    [switch]$Witchcraft,
+    [switch]$Wow,
     [switch]$Overlay,
-    [ValidateSet('ollama', 'openai')][string]$LlmBackend
+    [ValidateSet('ollama', 'openai')][string]$LlmBackend,
+    [ValidateSet('voicevox', 'gpt_sovits')][string]$TtsBackend
 )
 
 # Use the project's interpreter directly, so activating the venv is unnecessary.
@@ -19,8 +22,11 @@ if ($NoStt) { $akaneArguments += '--no-stt' }
 if ($NoTts) { $akaneArguments += '--no-tts' }
 if ($Hotkeys) { $akaneArguments += '--hotkeys' }
 if ($Gui) { $akaneArguments += '--gui' }
+if ($Witchcraft) { $akaneArguments += '--witchcraft' }
+if ($Wow) { $akaneArguments += '--wow' }
 if ($Overlay) { $akaneArguments += '--overlay' }
 if ($LlmBackend) { $akaneArguments += @('--llm-backend', $LlmBackend) }
+if ($TtsBackend) { $akaneArguments += @('--tts-backend', $TtsBackend) }
 # Keep multilingual output readable when stdout is redirected as well as in a console.
 & $akanePython -X utf8 @akaneArguments
 exit $LASTEXITCODE

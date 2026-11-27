@@ -16,9 +16,14 @@ PRE_SEARCH_FIELDS = LEGACY_FIELDS + (
     "llm_provider", "llm_model", "input_tokens", "cached_input_tokens",
     "output_tokens", "reasoning_tokens", "estimated_api_cost_usd",
 )
-FIELDS = PRE_SEARCH_FIELDS + (
+PRE_CHUNK_FIELDS = PRE_SEARCH_FIELDS + (
     "web_search_calls", "search_usage_source", "estimated_search_cost_usd", "estimated_text_cost_usd",
 )
+PRE_CONTEXT_FIELDS = PRE_CHUNK_FIELDS + ("reply_chunks", "generated_chunks", "spoken_chunks", "subtitle_pages",
+                                        "first_tts_seconds", "turn_seconds")
+PRE_SPEECH_FIELDS = PRE_CONTEXT_FIELDS + ("context_seconds",)
+PRE_TOOL_FIELDS = PRE_SPEECH_FIELDS + ("speech_chunks",)
+FIELDS = PRE_TOOL_FIELDS + ("provider_requests", "local_tool_calls")
 
 
 def upgrade_legacy_file(path):
@@ -27,7 +32,7 @@ def upgrade_legacy_file(path):
         header = tuple(reader.fieldnames or ())
         if header == FIELDS:
             return
-        if header not in (LEGACY_FIELDS, PRE_SEARCH_FIELDS):
+        if header not in (LEGACY_FIELDS, PRE_SEARCH_FIELDS, PRE_CHUNK_FIELDS, PRE_CONTEXT_FIELDS, PRE_SPEECH_FIELDS, PRE_TOOL_FIELDS):
             raise ValueError("Unknown timing CSV header; preserve/rename this file before recording new timings.")
         rows = list(reader)
     temporary_path = None

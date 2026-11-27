@@ -7,6 +7,15 @@ import config
 from backend_errors import BackendError
 
 
+class UnavailableBackend:
+    """Keep the GUI/settings usable after a conversation startup failure."""
+    def __init__(self, message):
+        self.startup_error = message
+
+    def __call__(self, messages):
+        raise BackendError(self.startup_error)
+
+
 def select_reply_backend(name, project_dir):
     if name == "ollama":
         from ollama_backend import get_llm_reply

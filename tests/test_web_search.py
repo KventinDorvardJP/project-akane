@@ -19,7 +19,7 @@ from openai_backend import OpenAIBackend
 from source_output import write_sources
 from subtitles import write_subtitle
 from turns import TurnProcessor
-from web_search import force_search, response_sources, search_requests
+from web_search import force_search, response_sources, search_requests, search_actions
 
 
 URL = "https://example.invalid/character"
@@ -182,6 +182,37 @@ class SearchAdapterTests(unittest.TestCase):
 
 
 class SearchMetadataTests(unittest.TestCase):
+    def test_query_metadata_supports_singular_plural_and_missing_without_inventing_queries(self):
+        bodies = [{"type": "search", "query": "WoW Forever release date"},
+                  {"type": "search", "queries": ["WoW Forever launch", "WoW Forever release"]},
+                  {"type": "search"}]
+        result = search_actions({"output": [{"type": "web_search_call", "action": action} for action in bodies]})
+        self.assertEqual(result, [
+            {"queries": ["WoW Forever release date"], "truncated": False},
+            {"queries": ["WoW Forever launch", "WoW Forever release"], "truncated": False},
+            {"queries": None, "truncated": False}])
+
+    def test_query_metadata_bounds_and_cleans_provider_strings_without_dumping_pages(self):
+        action = {"type": "search", "query": "  ゲーム\n発売\x00日  ",
+                  "queries": ["ゲーム 発売 日", "x" * 2048, None, {"page": "PRIVATE PAGE"},
+                              *[f"query {i}" for i in range(20)]],
+                  "sources": [{"text": "PRIVATE PAGE"}]}
+        result = search_actions({"output": [{"type": "web_search_call", "action": action}]})
+        self.assertTrue(result[0]["truncated"])
+        self.assertLessEqual(len(result[0]["queries"]), 8)
+        self.assertEqual(result[0]["queries"][0], "ゲーム 発売 日")
+        self.assertEqual(len(result[0]["queries"][1]), 1024)
+        self.assertNotIn("PRIVATE PAGE", json.dumps(result))
+        self.assertNotIn("\\u0000", json.dumps(result))
+
+    def test_query_metadata_skips_nonsearch_actions_and_limits_actions(self):
+        output = [{"type": "web_search_call", "action": {"type": kind, "query": "not a search"}}
+                  for kind in ("open_page", "find_in_page", "unknown")]
+        output.append({"type": "message", "query": "also not a search"})
+        self.assertEqual(search_actions({"output": output}), [])
+        output += [{"type": "web_search_call", "action": {"type": "search"}} for _ in range(100)]
+        self.assertEqual(len(search_actions({"output": output})), 10)
+
     def test_identity_policy_uses_latest_user_message_only(self):
         for text in ("Who's Rean?", "Who is Rean Schwarzerr?", "Кто такой Рин?", "リィンって誰？", "/search Rean"):
             self.assertTrue(force_search([{"role": "user", "content": text}]), text)

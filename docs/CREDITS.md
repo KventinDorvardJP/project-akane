@@ -26,6 +26,11 @@ credits area. Recheck the applicable terms when changing voices or publishing a 
 
 ## Other components
 
+Optional GPT-SoVITS runs in a separate installation. Its code, model weights and
+reference recordings retain their own terms; adding the connector does not bundle
+or license those assets. The optional Gradio client retains its own license.
+VOICEVOX's voice credit above applies when that VOICEVOX voice is used.
+
 Ollama, the selected Qwen model, Faster-Whisper, the OpenAI SDK/API, and the Python
 dependencies retain their own terms and licenses. They are installed separately;
 VOICEVOX binaries and voice models are not bundled in this repository.

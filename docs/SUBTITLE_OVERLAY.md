@@ -1,6 +1,6 @@
 # OBS subtitle overlay
 
-The optional Browser Source shows English subtitles on a translucent, rounded
+The optional Browser Source shows English or Russian subtitles on a translucent, rounded
 background. Text wraps within a configured maximum width; the panel's height fits
 the text. Empty captions hide **both** text and background. The rest of the page
 is transparent.
@@ -8,7 +8,15 @@ is transparent.
 It runs inside Akane's existing Python process. No second terminal, OBS WebSocket
 connection, password, extra Python package, or separately launched app is needed.
 The existing `runtime/subtitle_en.txt` remains the source of truth and still works
-with OBS Text (GDI+) if preferred. The control window keeps the full JA/EN chat.
+with OBS Text (GDI+) if preferred. The control window keeps Japanese and the selected translation.
+
+English is the default. To switch to Russian, open **Settings → Subtitles**, set
+**Subtitle language** to `ru`, save, and relaunch with your usual command. Each
+reply pairs Japanese with one translation. The OBS URL
+and legacy `runtime/subtitle_en.txt` path stay the same and carry the selected
+translation. If a Japanese speech part contains Cyrillic or lacks Japanese script,
+Akane shows the selected translation for that part and the rest of the reply.
+Witchcraft's in-game reply mirror is available in English mode.
 
 ## Launch
 
@@ -75,8 +83,9 @@ Edit settings in `config.py`, or merge these fields into your existing ignored
 Restart Akane after changing settings. Width and font size are in CSS pixels.
 Allowed width is 240–3840, font size 16–96, and opacity 0–1. The viewport needs room
 for the text and padding. A very long reply may need a taller Browser Source or
-smaller font; this version shows one whole reply, without paging or truncation.
-Paired Japanese speech / English sentence segmentation remains future work.
+smaller font. Akane now sends matching short English parts during Japanese speech;
+see [REPLY_CHUNKS.md](REPLY_CHUNKS.md) for limits, prefetch and text-only paging.
+The overlay itself still renders the current caption file without truncation.
 
 If the port is occupied, overlay startup warns and chat/file captions remain
 available. Choose another unused port and update the OBS URL. The server binds

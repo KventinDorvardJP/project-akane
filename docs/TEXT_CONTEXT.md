@@ -30,10 +30,12 @@ sends the original string as a text frame, without a JSON envelope.
    For example, ask “What does 私 mean here?” while the preview contains
    `私の名前は朱音です。`.
 
-Akane sends your question and a quoted reference together. The actual attached
-sentence appears beneath your input in conversation history, so you can verify
-what was used. While the checkbox stays checked, each accepted question attaches
-the current fresh line. Uncheck it for ordinary conversation.
+With OpenAI, the selected reference stays local until Luna requests it through
+`get_japanese_reference`; see [CONTEXT_TOOLS.md](CONTEXT_TOOLS.md). The selected
+sentence appears beneath your input for inspection, whether or not it was requested.
+Ollama continues receiving the quoted reference directly. While the checkbox stays
+checked, each accepted question selects the current fresh line. Uncheck it to
+disable access to the line for later turns.
 
 For microphone input, the line is captured when recording starts, not when STT
 finishes. Advancing the game while recording cannot replace that turn's sentence.

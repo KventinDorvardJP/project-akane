@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: Akane Data
+## Notes: Event-driven read-only character telemetry for Project Akane.
+## Author: Project Akane
+## Version: 0.1.0
+Protocol.lua
+Collector.lua
+AkaneData.lua

@@ -18,6 +18,7 @@ import config
 from main import initialize_stt, parse_bilingual_reply
 from ollama_backend import get_llm_reply
 from text_to_speech import synthesize_speech
+from conversation import parse_reply_segments
 
 
 def resource_snapshot():
@@ -56,8 +57,9 @@ def run_benchmark(project_dir, runs=3, cloud_stt=False, local_stt=False):
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "python": platform.python_version(), "platform": platform.platform(),
         "ollama_version": service_version(config.OLLAMA_URL.rsplit("/api/", 1)[0] + "/api/version"),
-        "voicevox_version": service_version(config.VOICEVOX_URL + "/version"),
-        "settings": {"llm_model": config.OLLAMA_MODEL, "voice_style": config.VOICEVOX_SPEAKER_ID,
+        "voicevox_version": service_version(config.VOICEVOX_URL + "/version") if config.TTS_BACKEND == "voicevox" else "not selected",
+        "settings": {"llm_model": config.OLLAMA_MODEL, "tts_backend": config.TTS_BACKEND,
+                     "voice_style": config.VOICEVOX_SPEAKER_ID if config.TTS_BACKEND == "voicevox" else None,
                      "local_stt_model": config.STT_MODEL, "local_stt_device": config.STT_DEVICE,
                      "local_stt_compute_type": config.STT_COMPUTE_TYPE},
         "resources_before": resource_snapshot(), "runs": [], "stt_checks": {},
@@ -67,16 +69,29 @@ def run_benchmark(project_dir, runs=3, cloud_stt=False, local_stt=False):
                 {"role": "user", "content": "Give me one short greeting before a game, in one sentence."}]
     for index in range(runs):
         started = perf_counter()
-        ja, en = parse_bilingual_reply(get_llm_reply(messages))
+        reply = get_llm_reply(messages)
+        ja, translation = parse_bilingual_reply(reply)
+        segments = parse_reply_segments(reply)
         llm_seconds = perf_counter() - started
         started = perf_counter()
-        audio = synthesize_speech(ja)
+        audio_seconds, first_tts_seconds = 0.0, 0.0
+        from reply_delivery import speech_plan
+        plan = speech_plan(segments)
+        for part_index, piece in enumerate(plan):
+            if piece.error:
+                raise ValueError(piece.error)
+            audio = synthesize_speech(piece.text)
+            if part_index == 0:
+                first_tts_seconds = perf_counter() - started
+            with wave.open(io.BytesIO(audio), "rb") as waveform:
+                audio_seconds += waveform.getnframes() / waveform.getframerate()
         tts_seconds = perf_counter() - started
-        with wave.open(io.BytesIO(audio), "rb") as waveform:
-            audio_seconds = waveform.getnframes() / waveform.getframerate()
         row = {"run": index + 1, "llm_seconds": llm_seconds, "tts_seconds": tts_seconds,
                "llm_plus_tts_seconds": llm_seconds + tts_seconds,
-               "audio_seconds": audio_seconds, "ja_characters": len(ja), "en_characters": len(en),
+               "audio_seconds": audio_seconds, "ja_characters": len(ja),
+               f"{config.SUBTITLE_LANGUAGE}_characters": len(translation),
+               "reply_chunks": len(segments), "speech_chunks": len(plan), "first_tts_seconds": first_tts_seconds,
+               "first_speech_ready_seconds": llm_seconds + first_tts_seconds,
                "resources_after": resource_snapshot()}
         report["runs"].append(row)
         print(f"Run {index + 1}: LLM {llm_seconds:.2f}s; TTS {tts_seconds:.2f}s; "
